@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+<title>CatLogic — Cozy Cat Puzzle</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body {
+    background: linear-gradient(145deg, #fdf6e3 0%, #f5e6cc 100%);
+    min-height: 100vh; display: flex; justify-content: center; align-items: center;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    touch-action: none; user-select: none;
+  }
+  #game {
+    background: rgba(255, 248, 237, 0.9);
+    backdrop-filter: blur(12px);
+    border-radius: 32px; padding: 16px;
+    max-width: 480px; width: 100%; margin: 10px;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.08), 0 0 0 1px rgba(255,255,255,0.5);
+  }
+  #header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 4px 8px 10px;
+  }
+  #header h1 { font-size: 20px; font-weight: 700; color: #5d4037; display: flex; align-items: center; gap: 4px; }
+  #header h1 span { color: #ff6b6b; }
+  #header h1 span { color: #ff6b6b; }
+  .stats { display: flex; gap: 14px; align-items: center; }
+  .hearts { font-size: 18px; letter-spacing: 2px; }
+  .hearts .lost { opacity: 0.2; }
+  .stat-item { font-size: 12px; color: #8d6e63; }
+  .stat-item strong { color: #5d4037; }
+  .progress { font-size: 12px; color: #8d6e63; background: #f5ede0; padding: 2px 10px; border-radius: 20px; }
+  canvas {
+    display: block; width: 100%; aspect-ratio: 1;
+    border-radius: 16px; background: #f5ede0;
+    cursor: pointer; touch-action: none;
+  }
+  #footer {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 4px 4px; gap: 6px;
+  }
+  .btn {
+    background: #fff; border: 2px solid #e0d5c8; border-radius: 12px;
+    padding: 8px 14px; font-size: 13px; font-weight: 600;
+    color: #5d4037; cursor: pointer; transition: all 0.15s;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .btn:active { transform: scale(0.95); background: #f5ede0; }
+  .btn.active { background: #ff6b6b; border-color: #ff6b6b; color: #fff; }
+  .btn.icon { font-size: 18px; padding: 8px 12px; }
+  .btn.primary { background: #ff6b6b; border-color: #ff6b6b; color: #fff; }
+  .btn.primary:active { background: #e05555; }
+  #hint-btn { background: #fff3cd; border-color: #ffc107; color: #856404; }
+  #mode-label { font-size: 12px; color: #8d6e63; text-align: center; padding: 2px 0 0; }
+
+  .overlay {
+    display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.5);
+    justify-content: center; align-items: center; z-index: 100;
+  }
+  .overlay.show { display: flex; }
+  .overlay-box {
+    background: #fff8ed; border-radius: 24px; padding: 32px 24px 24px;
+    max-width: 340px; width: 90%; text-align: center;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.15), 0 0 0 1px rgba(255,255,255,0.3);
+    animation: popIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  @keyframes popIn { from { transform: scale(0.7); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  .overlay-box h2 { font-size: 26px; color: #5d4037; margin-bottom: 4px; }
+  .overlay-box .sub { font-size: 14px; color: #a1887f; margin-bottom: 16px; }
+  .overlay-box p { font-size: 14px; color: #8d6e63; margin-bottom: 16px; line-height: 1.5; }
+  .overlay-box .big { font-size: 48px; margin-bottom: 8px; }
+  .overlay-box .btn { margin: 6px auto; justify-content: center; width: 100%; max-width: 200px; }
+  .overlay-box .btn-row { display: flex; gap: 10px; justify-content: center; margin-top: 12px; }
+  .overlay-box .btn-row .btn { max-width: 140px; }
+
+  #info-text { font-size: 12px; color: #a1887f; text-align: center; padding: 4px 0 0; }
+
+  @media (max-width: 420px) {
+    #game { padding: 12px; border-radius: 20px; }
+    #header h1 { font-size: 17px; }
+    .btn { padding: 6px 10px; font-size: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="game">
+  <div id="header">
+    <h1>🐱 <span>Cat</span>Logic</h1>
+    <div class="stats">
+      <div class="hearts" id="hearts">❤️❤️❤️</div>
+      <div class="stat-item">Lv <strong id="level-num">1</strong></div>
+      <span class="progress" id="progress-display">0/3 🐱</span>
+    </div>
+  </div>
+
+  <canvas id="canvas" width="600" height="600"></canvas>
+
+  <div id="footer">
+    <button class="btn active" id="place-btn" data-mode="place">🐱 Place</button>
+    <button class="btn" id="xmark-btn">❌ Mark</button>
+    <button class="btn icon" id="hint-btn">💡</button>
+    <button class="btn icon" id="reset-btn">🔄</button>
+  </div>
+  <div id="mode-label">Tap a territory to place a cat</div>
+  <div id="info-text">Place 1 cat in each colored zone · No cats share row/col/diagonal</div>
+</div>
+
+<!-- Win Overlay -->
+<div class="overlay" id="win-overlay">
+  <div class="overlay-box">
+    <div class="big">🎉</div>
+    <h2>Purrfect!</h2>
+    <p class="sub">All cats are in their cozy spots</p>
+    <p id="win-stats">Level 1 · 0 mistakes</p>
+    <button class="btn primary" id="next-btn">Next Level ▶</button>
+  </div>
+</div>
+
+<!-- Game Over Overlay -->
+<div class="overlay" id="lose-overlay">
+  <div class="overlay-box">
+    <div class="big">😿</div>
+    <h2>Oh no!</h2>
+    <p>The cats got too crowded...<br>Want to try again?</p>
+    <div class="btn-row">
+      <button class="btn" id="retry-btn">🔄 Retry</button>
+    </div>
+  </div>
+</div>
+
+<!-- Level Complete / Transition -->
+<div class="overlay" id="level-overlay">
+  <div class="overlay-box">
+    <h2 id="level-title">Level 2</h2>
+    <p id="level-desc">6×6 grid with 4 territories</p>
+    <button class="btn primary" id="start-btn">▶ Start!</button>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const W = 600, H = 600;
+
+// DOM refs
+const heartsEl = document.getElementById('hearts');
+const levelNum = document.getElementById('level-num');
+const placeBtn = document.getElementById('place-btn');
+const xmarkBtn = document.getElementById('xmark-btn');
+const hintBtn = document.getElementById('hint-btn');
+const resetBtn = document.getElementById('reset-btn');
+const modeLabel = document.getElementById('mode-label');
+const infoText = document.getElementById('info-text');
+const winOverlay = document.getElementById('win-overlay');
+const winStats = document.getElementById('win-stats');
+const nextBtn = document.getElementById('next-btn');
+const loseOverlay = document.getElementById('lose-overlay');
+const retryBtn = document.getElementById('retry-btn');
+const levelOverlay = document.getElementById('level-overlay');
+const levelTitle = document.getElementById('level-title');
+const levelDesc = document.getElementById('level-desc');
+const startBtn = document.getElementById('start-btn');
+
+// ---- Territory Colors ----
+const TERRITORY_COLORS = [
+  { bg: '#ffcdd2', border: '#e57373', label: 'Red' },
+  { bg: '#bbdefb', border: '#64b5f6', label: 'Blue' },
+  { bg: '#c8e6c9', border: '#81c784', label: 'Green' },
+  { bg: '#fff9c4', border: '#ffd54f', label: 'Yellow' },
+  { bg: '#e1bee7', border: '#ba68c8', label: 'Purple' },
+  { bg: '#ffe0b2', border: '#ffb74d', label: 'Orange' },
+  { bg: '#b2dfdb', border: '#4db6ac', label: 'Teal' },
+  { bg: '#f8bbd0', border: '#f06292', label: 'Pink' },
+  { bg: '#d7ccc8', border: '#8d6e63', label: 'Brown' },
+];
+
+// ---- Game State ----
+let state = {
+  grid: [],        // N×N array of { territory, cat, xmark, hint }
+  N: 6,
+  territories: [], // [{ cells: [{r,c}], id, color }]
+  catPositions: [], // [{r,c}] — the solution
+  mode: 'place',   // 'place' or 'xmark'
+  hearts: 3,
+  maxHearts: 3,
+  level: 1,
+  mistakes: 0,
+  placed: 0,
+  totalTerritories: 0,
+  gameOver: false,
+  won: false,
+  hintCount: 3,
+};
+
+// ============================================================
+//  Level Generation
+// ============================================================
+
+function generateTerritories(N, numTerritories) {
+  // Start with random assignment
+  const grid = Array.from({length: N}, () => Array(N).fill(-1));
+  
+  // Place territory seeds evenly
+  const seeds = [];
+  const spacing = Math.floor(N / Math.sqrt(numTerritories));
+  let placed = 0;
+  for (let r = 0; r < N && placed < numTerritories; r += spacing) {
+    for (let c = 0; c < N && placed < numTerritories; c += spacing) {
+      seeds.push({r: Math.min(r + Math.floor(Math.random()*spacing), N-1), c: Math.min(c + Math.floor(Math.random()*spacing), N-1)});
+      placed++;
+    }
+  }
+  // If we need more seeds, place randomly
+  while (seeds.length < numTerritories) {
+    seeds.push({r: Math.floor(Math.random()*N), c: Math.floor(Math.random()*N)});
+  }
+  // Trim to exact count
+  while (seeds.length > numTerritories) seeds.pop();
+  
+  // Assign each cell to nearest seed (Voronoi)
+  for (let r = 0; r < N; r++) {
+    for (let c = 0; c < N; c++) {
+      let minDist = Infinity;
+      let best = 0;
+      for (let s = 0; s < seeds.length; s++) {
+        const d = Math.abs(r - seeds[s].r) + Math.abs(c - seeds[s].c);
+        if (d < minDist) { minDist = d; best = s; }
+      }
+      // Add some noise to make territories organic
+      const noise = Math.random() < 0.15 ? 1 : 0;
+      const alt = Math.floor(Math.random() * seeds.length);
+      grid[r][c] = noise > 0 ? alt : best;
+    }
+  }
+  
+  // Ensure each territory has at least 2 cells (if possible)
+  // Count cells per territory
+  const counts = {};
+  for (let r = 0; r < N; r++) {
+    for (let c = 0; c < N; c++) {
+      const t = grid[r][c];
+      counts[t] = (counts[t] || 0) + 1;
+    }
+  }
+  
+  // Build territories array
+  const territories = seeds.map((_, idx) => ({ cells: [], id: idx }));
+  for (let r = 0; r < N; r++) {
+    for (let c = 0; c < N; c++) {
+      territories[grid[r][c]].cells.push({r, c});
+    }
+  }
+  
+  return { grid, territories };
+}
+
+function countAdjacentCats(grid, N, r, c, catPositions) {
+  let count = 0;
+  for (let dr = -1; dr <= 1; dr++) {
+    for (let dc = -1; dc <= 1; dc++) {
+      if (dr === 0 && dc === 0) continue;
+      const nr = r + dr, nc = c + dc;
+      if (nr >= 0 && nr < N && nc >= 0 && nc < N) {
+        if (catPositions.some(p => p.r === nr && p.c === nc)) count++;
+      }
+    }
+  }
+  return count;
+}
+
+function isAloof(r, c, positions, N) {
+  for (const p of positions) {
+    if (p.r === r) return false;       // same row
+    if (p.c === c) return false;       // same col
+    if (Math.abs(p.r - r) === Math.abs(p.c - c)) return false; // diagonal
+  }
+  return true;
+}
+
+function findCatPlacement(grid, territories, N) {
+  // Backtracking solver: place one cat per territory
+  const positions = [];
+  const territoryOrder = territories.slice().sort((a, b) => a.cells.length - b.cells.length);
+  
+  function backtrack(tIdx) {
+    if (tIdx >= territoryOrder.length) return true;
+    const terr = territoryOrder[tIdx];
+    // Shuffle cells for variety
+    const cells = [...terr.cells].sort(() => Math.random() - 0.5);
+    for (const cell of cells) {
+      if (isAloof(cell.r, cell.c, positions, N)) {
+        positions.push({r: cell.r, c: cell.c});
+        if (backtrack(tIdx + 1)) return true;
+        positions.pop();
+      }
+    }
+    return false;
+  }
+  
+  if (backtrack(0)) return positions;
+  return null; // No valid placement found — regenerate
+}
+
+function generateLevel(level) {
+  const N = Math.min(6 + Math.floor((level - 1) / 5), 9); // 6→9 as levels progress
+  const numTerritories = Math.min(N - 1, Math.floor(3 + (level - 1) / 3));
+  
+  let maxAttempts = 50;
+  while (maxAttempts-- > 0) {
+    const { grid: terrGrid, territories } = generateTerritories(N, numTerritories);
+    const catPositions = findCatPlacement(terrGrid, territories, N);
+    if (catPositions) {
+      return { N, territories, catPositions, terrGrid };
+    }
+  }
+  // Fallback: very simple puzzle
+  return generateLevel(Math.max(1, level - 1));
+}
+
+// ============================================================
+//  Initialize Level
+// ============================================================
+
+function initLevel(level) {
+  state.level = level;
+  
+  const puzzle = generateLevel(level);
+  state.N = puzzle.N;
+  state.territories = puzzle.territories;
+  state.catPositions = puzzle.catPositions;
+  
+  // Build player grid
+  state.grid = [];
+  for (let r = 0; r < puzzle.N; r++) {
+    state.grid[r] = [];
+    for (let c = 0; c < puzzle.N; c++) {
+      state.grid[r][c] = {
+        territory: puzzle.terrGrid[r][c],
+        cat: false,
+        xmark: false,
+        hint: false,
+      };
+    }
+  }
+  
+  // Calculate adjacent cat hints for each cell
+  for (let r = 0; r < puzzle.N; r++) {
+    for (let c = 0; c < puzzle.N; c++) {
+      state.grid[r][c].adjacentCount = countAdjacentCats(puzzle.terrGrid, puzzle.N, r, c, puzzle.catPositions);
+    }
+  }
+  
+  state.hearts = 3;
+  state.mistakes = 0;
+  state.placed = 0;
+  state.totalTerritories = puzzle.territories.length;
+  state.gameOver = false;
+  state.won = false;
+  state.mode = 'place';
+  state.hintCount = 3;
+  
+  updateUI();
+  showLevelTransition(level);
+}
+
+function showLevelTransition(level) {
+  const puzzle = state;
+  levelTitle.textContent = `Level ${level}`;
+  levelDesc.textContent = `${state.N}×${state.N} grid · ${state.totalTerritories} territories`;
+  levelOverlay.classList.add('show');
+}
+
+function startLevel() {
+  levelOverlay.classList.remove('show');
+  draw();
+}
+
+// ============================================================
+//  Game Logic
+// ============================================================
+
+function handleCellClick(row, col) {
+  if (state.gameOver || state.won) return;
+  
+  const cell = state.grid[row][col];
+  
+  if (state.mode === 'xmark') {
+    // Toggle X mark (only on empty cells with no cat)
+    if (!cell.cat) {
+      cell.xmark = !cell.xmark;
+      draw();
+    }
+    return;
+  }
+  
+  // Place mode
+  if (cell.cat) {
+    // Remove cat
+    cell.cat = false;
+    state.placed--;
+    draw();
+    return;
+  }
+  
+  if (cell.xmark) return; // Can't place on X mark
+  
+  // Check if territory already has a cat
+  const terrId = cell.territory;
+  const alreadyHasCat = state.grid.some(row => row.some(c => c.territory === terrId && c.cat));
+  if (alreadyHasCat) return;
+  
+  // Validate placement
+  const isCorrect = state.catPositions.some(p => p.r === row && p.c === col);
+  
+  if (isCorrect) {
+    cell.cat = true;
+    state.placed++;
+    draw();
+    
+    // Check win
+    if (state.placed === state.totalTerritories) {
+      state.won = true;
+      showWin();
+    }
+  } else {
+    // Wrong placement
+    cell.cat = true; // Show briefly then remove
+    state.hearts--;
+    state.mistakes++;
+    draw();
+    
+    setTimeout(() => {
+      cell.cat = false;
+      draw();
+      if (state.hearts <= 0) {
+        state.gameOver = true;
+        showLose();
+      }
+    }, 400);
+  }
+}
+
+function useHint() {
+  if (state.hintCount <= 0 || state.gameOver || state.won) return;
+  state.hintCount--;
+  
+  // Find a territory that doesn't have a cat placed yet
+  const territoriesWithCats = new Set();
+  for (let r = 0; r < state.N; r++) {
+    for (let c = 0; c < state.N; c++) {
+      if (state.grid[r][c].cat) territoriesWithCats.add(state.grid[r][c].territory);
+    }
+  }
+  
+  const unsolvedTerritories = state.territories.filter(t => !territoriesWithCats.has(t.id));
+  if (unsolvedTerritories.length === 0) return;
+  
+  const target = unsolvedTerritories[Math.floor(Math.random() * unsolvedTerritories.length)];
+  const solution = state.catPositions.find(p => {
+    return state.grid[p.r][p.c].territory === target.id;
+  });
+  
+  if (solution) {
+    // Highlight the correct cell
+    state.grid[solution.r][solution.c].hint = true;
+    setTimeout(() => {
+      state.grid[solution.r][solution.c].hint = false;
+      draw();
+    }, 1500);
+    draw();
+  }
+  
+  hintBtn.textContent = `💡 (${state.hintCount})`;
+}
+
+function resetLevel() {
+  for (let r = 0; r < state.N; r++) {
+    for (let c = 0; c < state.N; c++) {
+      state.grid[r][c].cat = false;
+      state.grid[r][c].xmark = false;
+    }
+  }
+  state.hearts = 3;
+  state.mistakes = 0;
+  state.placed = 0;
+  state.gameOver = false;
+  state.won = false;
+  state.hintCount = 3;
+  hintBtn.textContent = '💡';
+  updateUI();
+  draw();
+}
+
+// ============================================================
+//  Rendering
+// ============================================================
+
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+  const N = state.N;
+  const cellSize = (W - 40) / N;
+  const offsetX = (W - cellSize * N) / 2;
+  const offsetY = (H - cellSize * N) / 2;
+  
+  // Draw territories
+  for (let r = 0; r < N; r++) {
+    for (let c = 0; c < N; c++) {
+      const terrId = state.grid[r][c].territory;
+      const color = TERRITORY_COLORS[terrId % TERRITORY_COLORS.length];
+      const x = offsetX + c * cellSize;
+      const y = offsetY + r * cellSize;
+      
+      // Territory background
+      ctx.fillStyle = color.bg;
+      ctx.fillRect(x, y, cellSize, cellSize);
+      
+      // Territory border
+      ctx.strokeStyle = color.border;
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(x, y, cellSize, cellSize);
+      
+      // Check if adjacent cells have different territory — draw thick border
+      const neighbors = [{dr: -1, dc: 0}, {dr: 1, dc: 0}, {dr: 0, dc: -1}, {dr: 0, dc: 1}];
+      for (const n of neighbors) {
+        const nr = r + n.dr, nc = c + n.dc;
+        if (nr < 0 || nr >= N || nc < 0 || nc >= N) continue;
+        if (state.grid[nr][nc].territory !== terrId) {
+          ctx.strokeStyle = '#5d4037';
+          ctx.lineWidth = 2.5;
+          ctx.beginPath();
+          if (n.dr === -1) { ctx.moveTo(x, y); ctx.lineTo(x + cellSize, y); }
+          if (n.dr === 1) { ctx.moveTo(x, y + cellSize); ctx.lineTo(x + cellSize, y + cellSize); }
+          if (n.dc === -1) { ctx.moveTo(x, y); ctx.lineTo(x, y + cellSize); }
+          if (n.dc === 1) { ctx.moveTo(x + cellSize, y); ctx.lineTo(x + cellSize, y + cellSize); }
+          ctx.stroke();
+        }
+      }
+      
+      // Cell inner shadow for depth
+      ctx.fillStyle = 'rgba(0,0,0,0.03)';
+      ctx.fillRect(x + 2, y + 2, cellSize - 4, cellSize - 4);
+      
+      // Territory label (cute icon per territory)
+      const icons = ['🌷','🌻','🌸','🌺','🌿','🌼','🍀','🌹','💐'];
+      ctx.fillStyle = color.border;
+      ctx.globalAlpha = 0.6;
+      ctx.font = `${Math.max(10, cellSize * 0.2)}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(icons[terrId % icons.length], x + cellSize / 2, y + cellSize / 2 + 2);
+      ctx.globalAlpha = 1;
+      
+      // Adjacent cat count hint
+      const adjCount = state.grid[r][c].adjacentCount || 0;
+      if (adjCount > 0 && !state.grid[r][c].cat) {
+        ctx.fillStyle = 'rgba(93, 64, 55, 0.12)';
+        ctx.font = `${Math.max(8, cellSize * 0.12)}px sans-serif`;
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(`${adjCount}`, x + cellSize - 3, y + cellSize - 3);
+      }
+      
+      // Hint glow
+      if (state.grid[r][c].hint) {
+        ctx.fillStyle = 'rgba(255, 193, 7, 0.3)';
+        ctx.beginPath();
+        ctx.arc(x + cellSize / 2, y + cellSize / 2, cellSize * 0.45, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#ffc107';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+      }
+      
+      // X mark
+      if (state.grid[r][c].xmark) {
+        ctx.strokeStyle = '#e57373';
+        ctx.lineWidth = 3;
+        const pad = cellSize * 0.25;
+        ctx.beginPath();
+        ctx.moveTo(x + pad, y + pad);
+        ctx.lineTo(x + cellSize - pad, y + cellSize - pad);
+        ctx.moveTo(x + cellSize - pad, y + pad);
+        ctx.lineTo(x + pad, y + cellSize - pad);
+        ctx.stroke();
+      }
+      
+      // Cat
+      if (state.grid[r][c].cat) {
+        drawCat(ctx, x + cellSize / 2, y + cellSize / 2, cellSize * 0.4);
+      }
+    }
+  }
+  
+  // Grid lines (subtle)
+  ctx.strokeStyle = 'rgba(93, 64, 55, 0.08)';
+  ctx.lineWidth = 0.5;
+  for (let i = 0; i <= N; i++) {
+    const x = offsetX + i * cellSize;
+    ctx.beginPath(); ctx.moveTo(x, offsetY); ctx.lineTo(x, offsetY + cellSize * N); ctx.stroke();
+    const y = offsetY + i * cellSize;
+    ctx.beginPath(); ctx.moveTo(offsetX, y); ctx.lineTo(offsetX + cellSize * N, y); ctx.stroke();
+  }
+}
+
+function drawCat(ctx, x, y, size) {
+  // Draw a cute cat face
+  const headR = size * 0.75;
+  
+  // Ears
+  ctx.fillStyle = '#ff6b6b';
+  ctx.beginPath();
+  ctx.moveTo(x - headR * 0.75, y - headR * 0.35);
+  ctx.lineTo(x - headR * 0.25, y - headR * 0.95);
+  ctx.lineTo(x - headR * 0.05, y - headR * 0.35);
+  ctx.closePath(); ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(x + headR * 0.75, y - headR * 0.35);
+  ctx.lineTo(x + headR * 0.25, y - headR * 0.95);
+  ctx.lineTo(x + headR * 0.05, y - headR * 0.35);
+  ctx.closePath(); ctx.fill();
+  
+  // Inner ears
+  ctx.fillStyle = '#ffb3b3';
+  ctx.beginPath();
+  ctx.moveTo(x - headR * 0.6, y - headR * 0.38);
+  ctx.lineTo(x - headR * 0.25, y - headR * 0.78);
+  ctx.lineTo(x - headR * 0.12, y - headR * 0.38);
+  ctx.closePath(); ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(x + headR * 0.6, y - headR * 0.38);
+  ctx.lineTo(x + headR * 0.25, y - headR * 0.78);
+  ctx.lineTo(x + headR * 0.12, y - headR * 0.38);
+  ctx.closePath(); ctx.fill();
+  
+  // Head with subtle gradient
+  const grad = ctx.createRadialGradient(x - size*0.15, y - size*0.15, 0, x, y, headR);
+  grad.addColorStop(0, '#ffb3b3');
+  grad.addColorStop(0.6, '#ff8a80');
+  grad.addColorStop(1, '#ff6b6b');
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.arc(x, y, headR, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // White face patch (muzzle area)
+  ctx.fillStyle = 'rgba(255,255,255,0.3)';
+  ctx.beginPath();
+  ctx.ellipse(x, y + headR * 0.15, headR * 0.4, headR * 0.35, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Eyes — big and expressive
+  ctx.fillStyle = '#5d4037';
+  const eyeY = y - headR * 0.1;
+  const eyeOffset = headR * 0.32;
+  const eyeR = headR * 0.18;
+  ctx.beginPath();
+  ctx.arc(x - eyeOffset, eyeY, eyeR, 0, Math.PI * 2);
+  ctx.arc(x + eyeOffset, eyeY, eyeR, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Eye shine (big)
+  ctx.fillStyle = '#fff';
+  const shineR = eyeR * 0.45;
+  ctx.beginPath();
+  ctx.arc(x - eyeOffset + shineR * 0.9, eyeY - shineR, shineR, 0, Math.PI * 2);
+  ctx.arc(x + eyeOffset + shineR * 0.9, eyeY - shineR, shineR, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Small secondary shine
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  const shine2R = eyeR * 0.2;
+  ctx.beginPath();
+  ctx.arc(x - eyeOffset - shine2R, eyeY - shine2R, shine2R, 0, Math.PI * 2);
+  ctx.arc(x + eyeOffset - shine2R, eyeY - shine2R, shine2R, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Blush
+  ctx.fillStyle = 'rgba(255, 150, 150, 0.35)';
+  ctx.beginPath();
+  ctx.ellipse(x - headR * 0.45, y + headR * 0.1, headR * 0.15, headR * 0.1, 0, 0, Math.PI * 2);
+  ctx.ellipse(x + headR * 0.45, y + headR * 0.1, headR * 0.15, headR * 0.1, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Nose (little pink heart-ish triangle)
+  ctx.fillStyle = '#ff6b6b';
+  ctx.beginPath();
+  ctx.moveTo(x, y + headR * 0.12);
+  ctx.lineTo(x - headR * 0.1, y + headR * 0.22);
+  ctx.lineTo(x + headR * 0.1, y + headR * 0.22);
+  ctx.closePath(); ctx.fill();
+  
+  // Mouth (W shape)
+  ctx.strokeStyle = '#5d4037';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(x - headR * 0.2, y + headR * 0.28);
+  ctx.quadraticCurveTo(x - headR * 0.08, y + headR * 0.35, x, y + headR * 0.28);
+  ctx.quadraticCurveTo(x + headR * 0.08, y + headR * 0.35, x + headR * 0.2, y + headR * 0.28);
+  ctx.stroke();
+  
+  // Whiskers
+  ctx.strokeStyle = 'rgba(93, 64, 55, 0.3)';
+  ctx.lineWidth = 1.2;
+  for (let side = -1; side <= 1; side += 2) {
+    for (let i = -1; i <= 1; i++) {
+      ctx.beginPath();
+      ctx.moveTo(x + side * headR * 0.25, y + headR * 0.08 + i * headR * 0.14);
+      ctx.lineTo(x + side * headR * 0.7, y + headR * 0.08 + i * headR * 0.2);
+      ctx.stroke();
+    }
+  }
+}
+
+// ============================================================
+//  UI Updates
+// ============================================================
+
+function updateUI() {
+  levelNum.textContent = state.level;
+  let heartsStr = '';
+  for (let i = 0; i < state.maxHearts; i++) {
+    heartsStr += i < state.hearts ? '❤️' : '<span class="lost">🤍</span>';
+  }
+  heartsEl.innerHTML = heartsStr;
+  document.getElementById('progress-display').textContent = `${state.placed}/${state.totalTerritories} 🐱`;
+}
+
+function showWin() {
+  winStats.textContent = `Level ${state.level} · ${state.mistakes} mistake${state.mistakes !== 1 ? 's' : ''}`;
+  winOverlay.classList.add('show');
+}
+
+function showLose() {
+  loseOverlay.classList.add('show');
+}
+
+// ============================================================
+//  Input Handling
+// ============================================================
+
+canvas.addEventListener('click', (e) => {
+  const rect = canvas.getBoundingClientRect();
+  const x = (e.clientX - rect.left) / rect.width * W;
+  const y = (e.clientY - rect.top) / rect.height * H;
+  
+  const N = state.N;
+  const cellSize = (W - 40) / N;
+  const offsetX = (W - cellSize * N) / 2;
+  const offsetY = (H - cellSize * N) / 2;
+  
+  const col = Math.floor((x - offsetX) / cellSize);
+  const row = Math.floor((y - offsetY) / cellSize);
+  
+  if (row >= 0 && row < N && col >= 0 && col < N) {
+    handleCellClick(row, col);
+  }
+});
+
+// Touch support
+canvas.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  const touch = e.touches[0];
+  const rect = canvas.getBoundingClientRect();
+  const x = (touch.clientX - rect.left) / rect.width * W;
+  const y = (touch.clientY - rect.top) / rect.height * H;
+  
+  const N = state.N;
+  const cellSize = (W - 40) / N;
+  const offsetX = (W - cellSize * N) / 2;
+  const offsetY = (H - cellSize * N) / 2;
+  
+  const col = Math.floor((x - offsetX) / cellSize);
+  const row = Math.floor((y - offsetY) / cellSize);
+  
+  if (row >= 0 && row < N && col >= 0 && col < N) {
+    handleCellClick(row, col);
+  }
+}, { passive: false });
+
+// ============================================================
+//  Button Handlers
+// ============================================================
+
+placeBtn.addEventListener('click', () => {
+  state.mode = 'place';
+  placeBtn.classList.add('active');
+  xmarkBtn.classList.remove('active');
+  modeLabel.textContent = 'Tap a territory to place a cat';
+});
+
+xmarkBtn.addEventListener('click', () => {
+  state.mode = 'xmark';
+  xmarkBtn.classList.add('active');
+  placeBtn.classList.remove('active');
+  modeLabel.textContent = 'Tap a cell to mark as empty';
+});
+
+hintBtn.addEventListener('click', useHint);
+resetBtn.addEventListener('click', resetLevel);
+
+nextBtn.addEventListener('click', () => {
+  winOverlay.classList.remove('show');
+  initLevel(state.level + 1);
+});
+
+retryBtn.addEventListener('click', () => {
+  loseOverlay.classList.remove('show');
+  resetLevel();
+});
+
+startBtn.addEventListener('click', startLevel);
+
+// ============================================================
+//  Start Game
+// ============================================================
+
+initLevel(1);
+</script>
+</body>
+</html>
