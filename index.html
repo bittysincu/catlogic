@@ -77,6 +77,54 @@
   .overlay-box .btn-row .btn { max-width: 140px; }
 
   #info-text { font-size: 12px; color: #a1887f; text-align: center; padding: 4px 0 0; }
+  
+  /* Tutorial */
+  #tutorial-overlay {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.55);
+    display: none; justify-content: center; align-items: center; z-index: 200;
+  }
+  #tutorial-overlay.show { display: flex; }
+  #tutorial-box {
+    background: #fff8ed; border-radius: 28px; padding: 20px;
+    max-width: 420px; width: 92%; text-align: center;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+    animation: popIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  #tutorial-box .tut-canvas-wrap {
+    background: #f5ede0; border-radius: 16px; overflow: hidden; margin-bottom: 12px;
+    position: relative;
+  }
+  #tutorial-box canvas {
+    display: block; width: 100%; aspect-ratio: 1;
+    background: #f5ede0; cursor: default;
+  }
+  #tutorial-box .tut-body { padding: 4px 8px; }
+  #tutorial-box .tut-step { font-size: 12px; color: #ff6b6b; font-weight: 700; letter-spacing: 1px; }
+  #tutorial-box h2 { font-size: 22px; color: #5d4037; margin: 2px 0 6px; }
+  #tutorial-box p { font-size: 14px; color: #8d6e63; line-height: 1.6; margin-bottom: 8px; }
+  #tutorial-box .tut-rule { 
+    background: #f5ede0; border-radius: 10px; padding: 8px 12px; margin: 6px 0 10px;
+    font-size: 13px; color: #5d4037; line-height: 1.5; text-align: left;
+  }
+  #tutorial-box .tut-rule strong { color: #ff6b6b; }
+  #tutorial-box .tut-footer {
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 8px; margin-top: 4px;
+  }
+  #tutorial-box .tut-dots {
+    display: flex; gap: 6px; align-items: center;
+  }
+  #tutorial-box .tut-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #e0d5c8; transition: all 0.2s;
+  }
+  #tutorial-box .tut-dot.active { background: #ff6b6b; width: 24px; border-radius: 4px; }
+  #tutorial-box .tut-dot.done { background: #81c784; }
+  #tutorial-box .skip-btn {
+    background: none; border: none; color: #a1887f; font-size: 12px;
+    cursor: pointer; text-decoration: underline; padding: 4px;
+  }
 
   @media (max-width: 420px) {
     #game { padding: 12px; border-radius: 20px; }
@@ -138,6 +186,28 @@
     <h2 id="level-title">Level 2</h2>
     <p id="level-desc">6×6 grid with 4 territories</p>
     <button class="btn primary" id="start-btn">▶ Start!</button>
+  </div>
+</div>
+
+<!-- Tutorial Overlay -->
+<div id="tutorial-overlay">
+  <div id="tutorial-box">
+    <div class="tut-canvas-wrap">
+      <canvas id="tut-canvas" width="400" height="400"></canvas>
+    </div>
+    <div class="tut-body">
+      <div class="tut-step" id="tut-step-label">1 / 5</div>
+      <h2 id="tut-title">Welcome to CatLogic!</h2>
+      <p id="tut-desc">Place cats on the grid following the Aloof Rule.</p>
+      <div class="tut-rule" id="tut-rule-box">
+        <strong>🐱 Goal:</strong> Place exactly one cat in each colored territory.
+      </div>
+      <div class="tut-footer">
+        <button class="skip-btn" id="tut-skip">Skip tutorial</button>
+        <div class="tut-dots" id="tut-dots"></div>
+        <button class="btn primary" id="tut-next">Next →</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -739,6 +809,523 @@ function showLose() {
 }
 
 // ============================================================
+//  Tutorial System
+// ============================================================
+
+const tutCanvas = document.getElementById('tut-canvas');
+const tutCtx = tutCanvas.getContext('2d');
+const TUT_W = 400, TUT_H = 400;
+
+const TUTORIAL_STEPS = [
+  {
+    title: 'Welcome to CatLogic!',
+    desc: 'A cozy logic puzzle where you place cats on a grid.',
+    rule: '<strong>🐱 Goal:</strong> Place exactly one cat in each colored territory. No two cats can share a row, column, or diagonal.',
+    draw: (ctx) => {
+      // Welcome screen — big cat face, small demo grid
+      ctx.clearRect(0, 0, TUT_W, TUT_H);
+      
+      // Big cat face in center
+      drawTutCat(ctx, TUT_W / 2, TUT_H * 0.38, 75);
+      
+      // Title text on canvas
+      ctx.fillStyle = '#5d4037';
+      ctx.font = 'bold 22px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('🐱 CatLogic', TUT_W / 2, TUT_H * 0.78);
+      
+      ctx.fillStyle = '#a1887f';
+      ctx.font = '14px sans-serif';
+      ctx.fillText('A logic puzzle game', TUT_W / 2, TUT_H * 0.87);
+      
+      // Draw mini 4×4 demo grid at bottom
+      const gs = 28, gx = TUT_W / 2 - gs * 2, gy = TUT_H * 0.92;
+      const colors = ['#ffcdd2','#bbdefb','#c8e6c9','#fff9c4','#e1bee7','#ffe0b2'];
+      const demoGrid = [
+        [0,0,1,1],
+        [0,2,2,1],
+        [3,3,2,4],
+        [3,5,5,4]
+      ];
+      for (let r = 0; r < 4; r++) {
+        for (let c = 0; c < 4; c++) {
+          ctx.fillStyle = colors[demoGrid[r][c]];
+          ctx.fillRect(gx + c * gs, gy + r * gs, gs, gs);
+          ctx.strokeStyle = 'rgba(93,64,55,0.15)';
+          ctx.lineWidth = 0.5;
+          ctx.strokeRect(gx + c * gs, gy + r * gs, gs, gs);
+        }
+      }
+      // Territory borders
+      for (let r = 0; r < 4; r++) {
+        for (let c = 0; c < 4; c++) {
+          const t = demoGrid[r][c];
+          const n = [{dr:-1,dc:0},{dr:1,dc:0},{dr:0,dc:-1},{dr:0,dc:1}];
+          for (const nn of n) {
+            const nr = r + nn.dr, nc = c + nn.dc;
+            if (nr < 0 || nr >= 4 || nc < 0 || nc >= 4 || demoGrid[nr][nc] !== t) {
+              ctx.strokeStyle = '#5d4037';
+              ctx.lineWidth = 2;
+              ctx.beginPath();
+              if (nn.dr === -1) { ctx.moveTo(gx + c * gs, gy + r * gs); ctx.lineTo(gx + (c+1) * gs, gy + r * gs); }
+              if (nn.dr === 1) { ctx.moveTo(gx + c * gs, gy + (r+1) * gs); ctx.lineTo(gx + (c+1) * gs, gy + (r+1) * gs); }
+              if (nn.dc === -1) { ctx.moveTo(gx + c * gs, gy + r * gs); ctx.lineTo(gx + c * gs, gy + (r+1) * gs); }
+              if (nn.dc === 1) { ctx.moveTo(gx + (c+1) * gs, gy + r * gs); ctx.lineTo(gx + (c+1) * gs, gy + (r+1) * gs); }
+              ctx.stroke();
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    title: 'Colored Territories',
+    desc: 'The grid is divided into colored zones.',
+    rule: 'Each <strong>colored zone</strong> is one territory. You must place <strong>exactly one cat</strong> in each territory. Tap any cell inside a territory to place a cat there.',
+    draw: (ctx) => {
+      ctx.clearRect(0, 0, TUT_W, TUT_H);
+      const colors = ['#ffcdd2','#bbdefb','#c8e6c9','#fff9c4','#e1bee7','#ffe0b2'];
+      const borderColors = ['#e57373','#64b5f6','#81c784','#ffd54f','#ba68c8','#ffb74d'];
+      const territoryGrid = [
+        [0,0,1,1],
+        [0,2,2,1],
+        [3,3,2,4],
+        [3,5,5,4]
+      ];
+      const S = 6, spacing = 300 / S, ox = (TUT_W - spacing * S) / 2, oy = 30;
+      
+      for (let r = 0; r < S; r++) {
+        for (let c = 0; c < S; c++) {
+          const t = territoryGrid[Math.floor(r * 4 / S)][Math.floor(c * 4 / S)];
+          const x = ox + c * spacing, y = oy + r * spacing;
+          
+          ctx.fillStyle = colors[t % colors.length];
+          ctx.fillRect(x, y, spacing, spacing);
+          
+          // Territory border
+          ctx.strokeStyle = borderColors[t % borderColors.length];
+          ctx.lineWidth = 2;
+          ctx.strokeRect(x, y, spacing, spacing);
+          
+          // Check for territory boundary
+          const tCheck = [4, 5, 6, 7]; // unused
+          const neighbors = [{dr: -1, dc: 0}, {dr: 1, dc: 0}, {dr: 0, dc: -1}, {dr: 0, dc: 1}];
+          for (const n of neighbors) {
+            const nr = r + n.dr, nc = c + n.dc;
+            if (nr < 0 || nr >= S || nc < 0 || nc >= S) continue;
+            const nt = territoryGrid[Math.floor(nr * 4 / S)][Math.floor(nc * 4 / S)];
+            if (nt !== t) {
+              ctx.strokeStyle = '#5d4037';
+              ctx.lineWidth = 3;
+              ctx.beginPath();
+              if (n.dr === -1) { ctx.moveTo(x, y); ctx.lineTo(x + spacing, y); }
+              if (n.dr === 1) { ctx.moveTo(x, y + spacing); ctx.lineTo(x + spacing, y + spacing); }
+              if (n.dc === -1) { ctx.moveTo(x, y); ctx.lineTo(x, y + spacing); }
+              if (n.dc === 1) { ctx.moveTo(x + spacing, y); ctx.lineTo(x + spacing, y + spacing); }
+              ctx.stroke();
+            }
+          }
+          
+          // Territory number label
+          ctx.fillStyle = borderColors[t % borderColors.length];
+          ctx.globalAlpha = 0.4;
+          ctx.font = `${Math.max(8, spacing * 0.18)}px sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          const icons = ['🌷','🌻','🌸','🌺','🌿','🌼'];
+          ctx.fillText(icons[t % icons.length], x + spacing / 2, y + spacing / 2);
+          ctx.globalAlpha = 1;
+        }
+      }
+      
+      // Draw one placed cat
+      drawTutCat(ctx, ox + 0.5 * spacing, oy + 0.5 * spacing, spacing * 0.25);
+      
+      // Label
+      ctx.fillStyle = '#5d4037';
+      ctx.font = 'bold 13px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('🌷 Zone 1  🌻 Zone 2  🌸 Zone 3', TUT_W / 2, TUT_H - 10);
+    }
+  },
+  {
+    title: 'The Aloof Rule',
+    desc: 'Cats don\'t like sharing space!',
+    rule: '<strong>No two cats</strong> can share the same <strong>row</strong>, <strong>column</strong>, or <strong>diagonal</strong>. Always check the highlighted lines before placing!',
+    draw: (ctx) => {
+      ctx.clearRect(0, 0, TUT_W, TUT_H);
+      const colors = ['#ffcdd2','#bbdefb','#c8e6c9','#fff9c4'];
+      const bc = ['#e57373','#64b5f6','#81c784','#ffd54f'];
+      const S = 5, spacing = 300 / S, ox = (TUT_W - spacing * S) / 2, oy = 25;
+      
+      const demo = [
+        [0,0,0,1,1],
+        [0,2,2,2,1],
+        [0,2,3,2,1],
+        [0,2,2,2,1],
+        [0,0,0,1,1]
+      ];
+      
+      // Cats placed: (0,0), (2,3), (4,2) — one per territory
+      const cats = [{r:0,c:0,t:0}, {r:2,c:3,t:1}];
+      
+      for (let r = 0; r < S; r++) {
+        for (let c = 0; c < S; c++) {
+          const t = demo[r][c];
+          const x = ox + c * spacing, y = oy + r * spacing;
+          
+          ctx.fillStyle = colors[t % colors.length];
+          ctx.fillRect(x, y, spacing, spacing);
+          ctx.strokeStyle = bc[t % bc.length];
+          ctx.lineWidth = 1.5;
+          ctx.strokeRect(x, y, spacing, spacing);
+          
+          // Territory borders
+          const n = [{dr:-1,dc:0},{dr:1,dc:0},{dr:0,dc:-1},{dr:0,dc:1}];
+          for (const nn of n) {
+            const nr = r + nn.dr, nc = c + nn.dc;
+            if (nr < 0 || nr >= S || nc < 0 || nc >= S) continue;
+            if (demo[nr][nc] !== t) {
+              ctx.strokeStyle = '#5d4037';
+              ctx.lineWidth = 2.5;
+              ctx.beginPath();
+              if (nn.dr === -1) { ctx.moveTo(x, y); ctx.lineTo(x + spacing, y); }
+              if (nn.dr === 1) { ctx.moveTo(x, y + spacing); ctx.lineTo(x + spacing, y + spacing); }
+              if (nn.dc === -1) { ctx.moveTo(x, y); ctx.lineTo(x, y + spacing); }
+              if (nn.dc === 1) { ctx.moveTo(x + spacing, y); ctx.lineTo(x + spacing, y + spacing); }
+              ctx.stroke();
+            }
+          }
+        }
+      }
+      
+      // Highlight row/col/diagonal of existing cat at (0,0)
+      ctx.fillStyle = 'rgba(229, 115, 115, 0.15)';
+      // Row 0
+      ctx.fillRect(ox + 0 * spacing, oy + 0 * spacing, spacing * S, spacing);
+      // Col 0
+      ctx.fillRect(ox + 0 * spacing, oy + 0 * spacing, spacing, spacing * S);
+      
+      // Draw placed cats
+      for (const cat of cats) {
+        drawTutCat(ctx, ox + (cat.c + 0.5) * spacing, oy + (cat.r + 0.5) * spacing, spacing * 0.22);
+      }
+      
+      // Show "forbidden" X on blocked positions (same row/col as first cat)
+      const blocked = [{r:0,c:1},{r:0,c:2},{r:0,c:3},{r:0,c:4},{r:1,c:0},{r:2,c:0},{r:3,c:0},{r:4,c:0}];
+      for (const b of blocked) {
+        const x = ox + b.c * spacing, y = oy + b.r * spacing;
+        ctx.strokeStyle = 'rgba(229, 115, 115, 0.5)';
+        ctx.lineWidth = 2.5;
+        const p = spacing * 0.3;
+        ctx.beginPath();
+        ctx.moveTo(x + p, y + p); ctx.lineTo(x + spacing - p, y + spacing - p);
+        ctx.moveTo(x + spacing - p, y + p); ctx.lineTo(x + p, y + spacing - p);
+        ctx.stroke();
+      }
+      
+      // Arrow from existing cat pointing to blocked row
+      ctx.fillStyle = '#e57373';
+      ctx.font = 'bold 11px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('🚫 Same row — blocked!', ox + 2.5 * spacing, oy - 8);
+      ctx.fillText('🚫 Same column — blocked!', ox - 1, oy + 2.5 * spacing);
+    }
+  },
+  {
+    title: 'Hearts & Hints',
+    desc: 'You have 3 chances — use them wisely.',
+    rule: 'You start with <strong>3 ❤️ hearts</strong>. Place a cat in the wrong spot and you <strong>lose a heart</strong>. Lose all 3 and it\'s game over. Use the <strong>💡 Hint</strong> button to highlight a safe cell!',
+    draw: (ctx) => {
+      ctx.clearRect(0, 0, TUT_W, TUT_H);
+      
+      // Draw 3 big hearts
+      const heartY = TUT_H * 0.22;
+      const heartX = [TUT_W * 0.3, TUT_W * 0.5, TUT_W * 0.7];
+      for (let i = 0; i < 3; i++) {
+        ctx.font = '52px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('❤️', heartX[i], heartY);
+      }
+      
+      // Mistake example
+      ctx.fillStyle = '#e57373';
+      ctx.font = 'bold 13px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('❌ Wrong spot = lost heart', TUT_W / 2, TUT_H * 0.4);
+      ctx.fillText('😿 3 mistakes = Game Over', TUT_W / 2, TUT_H * 0.47);
+      
+      // Hint button illustration
+      ctx.fillStyle = '#f5ede0';
+      roundRect(ctx, TUT_W * 0.15, TUT_H * 0.55, TUT_W * 0.7, 55, 12);
+      
+      ctx.fillStyle = '#fff3cd';
+      roundRect(ctx, TUT_W * 0.15, TUT_H * 0.55, TUT_W * 0.7, 55, 12);
+      ctx.strokeStyle = '#ffc107';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      roundRect(ctx, TUT_W * 0.15, TUT_H * 0.55, TUT_W * 0.7, 55, 12);
+      ctx.stroke();
+      
+      ctx.fillStyle = '#856404';
+      ctx.font = 'bold 16px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('💡 Hint  (3 left)', TUT_W / 2, TUT_H * 0.55 + 27);
+      
+      ctx.fillStyle = '#a1887f';
+      ctx.font = '12px sans-serif';
+      ctx.fillText('Highlights a safe cell — great when you\'re stuck!', TUT_W / 2, TUT_H * 0.8);
+    }
+  },
+  {
+    title: 'X Marks & Ready?',
+    desc: 'Mark cells you know are unsafe.',
+    rule: 'Switch to <strong>❌ Mark mode</strong> and tap cells where cats <strong>can\'t</strong> go. This helps track your logic. When you\'re ready, place cats with <strong>🐱 Place mode</strong>.',
+    draw: (ctx) => {
+      ctx.clearRect(0, 0, TUT_W, TUT_H);
+      
+      // Show a small grid with X marks
+      const S = 4, spacing = 250 / S, ox = (TUT_W - spacing * S) / 2, oy = 30;
+      const colors = ['#ffcdd2','#bbdefb','#c8e6c9','#fff9c4'];
+      const simpleGrid = [
+        [0,0,1,1],
+        [0,2,2,1],
+        [3,3,2,2],
+        [3,3,0,0]
+      ];
+      
+      for (let r = 0; r < S; r++) {
+        for (let c = 0; c < S; c++) {
+          const t = simpleGrid[r][c];
+          const x = ox + c * spacing, y = oy + r * spacing;
+          ctx.fillStyle = colors[t % colors.length];
+          ctx.fillRect(x, y, spacing, spacing);
+          
+          // Territory boundary
+          const n = [{dr:-1,dc:0},{dr:1,dc:0},{dr:0,dc:-1},{dr:0,dc:1}];
+          for (const nn of n) {
+            const nr = r + nn.dr, nc = c + nn.dc;
+            if (nr < 0 || nr >= S || nc < 0 || nc >= S) continue;
+            if (simpleGrid[nr][nc] !== t) {
+              ctx.strokeStyle = '#5d4037';
+              ctx.lineWidth = 2.5;
+              ctx.beginPath();
+              if (nn.dr === -1) { ctx.moveTo(x, y); ctx.lineTo(x + spacing, y); }
+              if (nn.dr === 1) { ctx.moveTo(x, y + spacing); ctx.lineTo(x + spacing, y + spacing); }
+              if (nn.dc === -1) { ctx.moveTo(x, y); ctx.lineTo(x, y + spacing); }
+              if (nn.dc === 1) { ctx.moveTo(x + spacing, y); ctx.lineTo(x + spacing, y + spacing); }
+              ctx.stroke();
+            }
+          }
+          
+          // X marks on some cells
+          if ((r === 0 && c === 0) || (r === 1 && c === 3) || (r === 3 && c === 1)) {
+            ctx.strokeStyle = 'rgba(229, 115, 115, 0.7)';
+            ctx.lineWidth = 3;
+            const p = spacing * 0.25;
+            ctx.beginPath();
+            ctx.moveTo(x + p, y + p); ctx.lineTo(x + spacing - p, y + spacing - p);
+            ctx.moveTo(x + spacing - p, y + p); ctx.lineTo(x + p, y + spacing - p);
+            ctx.stroke();
+          }
+          
+          // One cat placed
+          if (r === 0 && c === 3) {
+            drawTutCat(ctx, x + spacing / 2, y + spacing / 2, spacing * 0.22);
+          }
+        }
+      }
+      
+      // Arrows/labels pointing to X marks
+      ctx.fillStyle = '#e57373';
+      ctx.font = 'bold 11px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('❌ Known unsafe cells', TUT_W / 2, TUT_H - 12);
+      
+      // Mode toggle illustration
+      ctx.fillStyle = '#5d4037';
+      ctx.font = 'bold 14px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('🐱 Place  ↔  ❌ Mark', TUT_W / 2, 10);
+    }
+  }
+];
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+function drawTutCat(ctx, x, y, size) {
+  const headR = size * 0.7;
+  ctx.fillStyle = '#ff6b6b';
+  ctx.beginPath();
+  ctx.moveTo(x - headR * 0.7, y - headR * 0.3);
+  ctx.lineTo(x - headR * 0.2, y - headR * 0.9);
+  ctx.lineTo(x, y - headR * 0.3);
+  ctx.closePath(); ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(x + headR * 0.7, y - headR * 0.3);
+  ctx.lineTo(x + headR * 0.2, y - headR * 0.9);
+  ctx.lineTo(x, y - headR * 0.3);
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#ffb3b3';
+  ctx.beginPath();
+  ctx.moveTo(x - headR * 0.55, y - headR * 0.35);
+  ctx.lineTo(x - headR * 0.2, y - headR * 0.72);
+  ctx.lineTo(x - headR * 0.08, y - headR * 0.35);
+  ctx.closePath(); ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(x + headR * 0.55, y - headR * 0.35);
+  ctx.lineTo(x + headR * 0.2, y - headR * 0.72);
+  ctx.lineTo(x + headR * 0.08, y - headR * 0.35);
+  ctx.closePath(); ctx.fill();
+  
+  const grad = ctx.createRadialGradient(x - size*0.1, y - size*0.1, 0, x, y, headR);
+  grad.addColorStop(0, '#ffb3b3');
+  grad.addColorStop(0.6, '#ff8a80');
+  grad.addColorStop(1, '#ff6b6b');
+  ctx.fillStyle = grad;
+  ctx.beginPath(); ctx.arc(x, y, headR, 0, Math.PI * 2); ctx.fill();
+  
+  ctx.fillStyle = 'rgba(255,255,255,0.3)';
+  ctx.beginPath(); ctx.ellipse(x, y + headR * 0.15, headR * 0.4, headR * 0.3, 0, 0, Math.PI * 2); ctx.fill();
+  
+  ctx.fillStyle = '#5d4037';
+  const eyeR = headR * 0.17;
+  ctx.beginPath();
+  ctx.arc(x - headR * 0.3, y - headR * 0.08, eyeR, 0, Math.PI * 2);
+  ctx.arc(x + headR * 0.3, y - headR * 0.08, eyeR, 0, Math.PI * 2);
+  ctx.fill();
+  
+  ctx.fillStyle = '#fff';
+  const shineR = eyeR * 0.4;
+  ctx.beginPath();
+  ctx.arc(x - headR * 0.3 + shineR * 0.8, y - headR * 0.08 - shineR, shineR, 0, Math.PI * 2);
+  ctx.arc(x + headR * 0.3 + shineR * 0.8, y - headR * 0.08 - shineR, shineR, 0, Math.PI * 2);
+  ctx.fill();
+  
+  ctx.fillStyle = 'rgba(255,150,150,0.35)';
+  ctx.beginPath();
+  ctx.ellipse(x - headR * 0.42, y + headR * 0.08, headR * 0.12, headR * 0.08, 0, 0, Math.PI * 2);
+  ctx.ellipse(x + headR * 0.42, y + headR * 0.08, headR * 0.12, headR * 0.08, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  ctx.fillStyle = '#ff6b6b';
+  ctx.beginPath();
+  ctx.moveTo(x, y + headR * 0.12);
+  ctx.lineTo(x - headR * 0.08, y + headR * 0.2);
+  ctx.lineTo(x + headR * 0.08, y + headR * 0.2);
+  ctx.closePath(); ctx.fill();
+  
+  ctx.strokeStyle = '#5d4037';
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.moveTo(x - headR * 0.18, y + headR * 0.26);
+  ctx.quadraticCurveTo(x - headR * 0.06, y + headR * 0.32, x, y + headR * 0.26);
+  ctx.quadraticCurveTo(x + headR * 0.06, y + headR * 0.32, x + headR * 0.18, y + headR * 0.26);
+  ctx.stroke();
+  
+  ctx.strokeStyle = 'rgba(93,64,55,0.3)';
+  ctx.lineWidth = 1;
+  for (let side = -1; side <= 1; side += 2) {
+    for (let i = -1; i <= 1; i++) {
+      ctx.beginPath();
+      ctx.moveTo(x + side * headR * 0.22, y + headR * 0.06 + i * headR * 0.12);
+      ctx.lineTo(x + side * headR * 0.65, y + headR * 0.06 + i * headR * 0.18);
+      ctx.stroke();
+    }
+  }
+}
+
+let tutorialStep = 0;
+const tutOverlay = document.getElementById('tutorial-overlay');
+const tutCanvas2 = document.getElementById('tut-canvas');
+const tutTitle = document.getElementById('tut-title');
+const tutDesc = document.getElementById('tut-desc');
+const tutRule = document.getElementById('tut-rule-box');
+const tutStepLabel = document.getElementById('tut-step-label');
+const tutDots = document.getElementById('tut-dots');
+const tutNext = document.getElementById('tut-next');
+const tutSkip = document.getElementById('tut-skip');
+const tutCtx2 = tutCanvas2.getContext('2d');
+
+function showTutorial() {
+  tutorialStep = 0;
+  buildTutDots();
+  renderTutorial();
+  // Hide level transition overlay if it's showing
+  levelOverlay.classList.remove('show');
+  tutOverlay.classList.add('show');
+}
+
+function buildTutDots() {
+  tutDots.innerHTML = '';
+  for (let i = 0; i < TUTORIAL_STEPS.length; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'tut-dot' + (i === 0 ? ' active' : '');
+    tutDots.appendChild(dot);
+  }
+}
+
+function renderTutorial() {
+  const step = TUTORIAL_STEPS[tutorialStep];
+  tutStepLabel.textContent = `${tutorialStep + 1} / ${TUTORIAL_STEPS.length}`;
+  tutTitle.textContent = step.title;
+  tutDesc.textContent = step.desc;
+  tutRule.innerHTML = step.rule;
+  
+  // Update dots
+  const dots = tutDots.querySelectorAll('.tut-dot');
+  dots.forEach((d, i) => {
+    d.className = 'tut-dot' + (i === tutorialStep ? ' active' : i < tutorialStep ? ' done' : '');
+  });
+  
+  // Button label
+  const isLast = tutorialStep === TUTORIAL_STEPS.length - 1;
+  tutNext.textContent = isLast ? '▶ Start Game!' : 'Next →';
+  
+  // Draw step illustration
+  step.draw(tutCtx2);
+  
+  // Clear main canvas during tutorial
+  // (It's hidden under the overlay anyway)
+}
+
+function nextTutorialStep() {
+  if (tutorialStep < TUTORIAL_STEPS.length - 1) {
+    tutorialStep++;
+    renderTutorial();
+  } else {
+    // Done — start the game
+    tutOverlay.classList.remove('show');
+    // Mark tutorial as seen in localStorage
+    try { localStorage.setItem('catlogic_tutorial_done', 'true'); } catch(e) {}
+    showLevelTransition(1);
+  }
+}
+
+function skipTutorial() {
+  tutOverlay.classList.remove('show');
+  try { localStorage.setItem('catlogic_tutorial_done', 'true'); } catch(e) {}
+  showLevelTransition(1);
+}
+
+tutNext.addEventListener('click', nextTutorialStep);
+tutSkip.addEventListener('click', skipTutorial);
+
+// ============================================================
 //  Input Handling
 // ============================================================
 
@@ -818,7 +1405,14 @@ startBtn.addEventListener('click', startLevel);
 //  Start Game
 // ============================================================
 
+// Check if tutorial should be shown (first play)
+let showTutorialFirst = true;
+try { showTutorialFirst = localStorage.getItem('catlogic_tutorial_done') !== 'true'; } catch(e) {}
 initLevel(1);
+if (showTutorialFirst) {
+  // Override: show tutorial instead of level transition
+  showTutorial();
+}
 </script>
 </body>
 </html>
